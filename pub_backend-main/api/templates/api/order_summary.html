@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+{% load order_summary_tags %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Summary</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        h1 {
+            color: #1e3a8a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+            font-size: 28px;
+        }
+        .container {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #2c5282;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f1f5f9;
+        }
+        tr:hover {
+            background-color: #e5eefe;
+        }
+        .totals-row {
+            font-weight: bold;
+            background-color: #e9ecef;
+        }
+        .menu-cell {
+            text-align: center;
+        }
+        @media print {
+            body {
+                padding: 0;
+                background-color: white;
+            }
+            table {
+                box-shadow: none;
+            }
+            button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Order Summary</h1>
+    
+    <div class="container">
+        <button onclick="window.print()">Print Summary</button>
+        <button onclick="exportTableToCSV('order_summary.csv')">Export to CSV</button>
+        
+        <table id="summary-table">
+            <thead>
+                <tr>
+                    <th>Order Time</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Table</th>
+                    <th>Total Price</th>
+                    {% for menu_name in menu_names %}
+                    <th>{{ menu_name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in summary_data %}
+                <tr>
+                    <td>{{ item.earliest_time|date:"Y-m-d H:i" }}</td>
+                    <td>{{ item.reservation.name }}</td>
+                    <td>{{ item.reservation.phone }}</td>
+                    <td>{% if item.reservation.assigned_table %}{{ item.reservation.assigned_table.number }}{% else %}미배정{% endif %}</td>
+                    <td>{{ item.order.price }}</td>
+                    {% for menu_name in menu_names %}
+                    <td class="menu-cell">{{ item.menu_counts|get_item:menu_name }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+                
+                <!-- Totals row - Fixed calculation -->
+                <tr class="totals-row">
+                    <td colspan="4">합계</td>
+                    <td>
+                        {% with total_price=0 %}
+                            {% for item in summary_data %}
+                                {% with new_total=total_price|add:item.order.price %}
+                                    {% with total_price=new_total %}
+                                        {% if forloop.last %}{{ total_price }}{% endif %}
+                                    {% endwith %}
+                                {% endwith %}
+                            {% endfor %}
+                        {% endwith %}
+                    </td>
+                    {% for menu_name in menu_names %}
+                    <td class="menu-cell">
+                        {% with total_menu_count=0 %}
+                            {% for item in summary_data %}
+                                {% with item_count=item.menu_counts|get_item:menu_name %}
+                                    {% with new_total=total_menu_count|add:item_count %}
+                                        {% with total_menu_count=new_total %}
+                                            {% if forloop.last %}{{ total_menu_count }}{% endif %}
+                                        {% endwith %}
+                                    {% endwith %}
+                                {% endwith %}
+                            {% endfor %}
+                        {% endwith %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Function to export table to CSV
+        function exportTableToCSV(filename) {
+            var csv = [];
+            var rows = document.querySelectorAll("#summary-table tr");
+            
+            for (var i = 0; i < rows.length; i++) {
+                var row = [], cols = rows[i].querySelectorAll("td, th");
+                
+                for (var j = 0; j < cols.length; j++) {
+                    var text = cols[j].innerText.replace(/,/g, ';'); // Replace commas with semicolons
+                    row.push(text);
+                }
+                
+                csv.push(row.join(","));        
+            }
+            
+            // Download CSV file
+            downloadCSV(csv.join("\n"), filename);
+        }
+        
+        function downloadCSV(csv, filename) {
+            var csvFile;
+            var downloadLink;
+            
+            // Add BOM for proper encoding of Korean characters
+            var csvData = '\uFEFF' + csv;
+            
+            // Create CSV file
+            csvFile = new Blob([csvData], {type: "text/csv;charset=utf-8"});
+            
+            // Create download link
+            downloadLink = document.createElement("a");
+            
+            // Assign file to download link
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = "none";
+            
+            // Add download link to DOM
+            document.body.appendChild(downloadLink);
+            
+            // Click download link
+            downloadLink.click();
+        }
+    </script>
+</body>
+</html>

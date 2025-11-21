@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order List</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        h1, h2 {
+            color: #1e3a8a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        h1 {
+            font-size: 28px;
+        }
+        h2 {
+            font-size: 22px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0 0 25px 0;
+        }
+        li {
+            background-color: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            transition: all 0.3s;
+        }
+        li:hover {
+            box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+        }
+        .order-items {
+            display: none;
+            margin: 10px 0 0 20px;
+            padding: 10px;
+            background-color: #f1f5f9;
+            border-radius: 4px;
+        }
+        .highlight-red {
+            background-color: #fee2e2;
+            border-left: 4px solid #ef4444;
+        }
+        .highlight-yellow {
+            background-color: #fef3c7;
+            border-left: 4px solid #f59e0b;
+        }
+        .highlight-green {
+            background-color: #dcfce7;
+            border-left: 4px solid #22c55e;
+        }
+        button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3182ce;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2b6cb0;
+        }
+        /* Different button colors for different actions */
+        button.toggle-paid {
+            background-color: #38a169;
+        }
+        button.toggle-paid:hover {
+            background-color: #2f855a;
+        }
+        button.send-message {
+            background-color: #d97706;
+        }
+        button.send-message:hover {
+            background-color: #b45309;
+        }
+        button.memo {
+            background-color: #7c3aed;
+        }
+        button.memo:hover {
+            background-color: #6d28d9;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        strong {
+            font-weight: 600;
+            color: #1e3a8a;
+        }
+        .order-meta {
+            margin-bottom: 10px;
+        }
+        .actions {
+            margin-top: 10px;
+        }
+        @media (max-width: 768px) {
+            li {
+                padding: 10px;
+            }
+            button {
+                padding: 6px 8px;
+                font-size: 12px;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+    <script>
+        // Auto refresh every 15 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 15000);
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ensure all order-items are hidden initially
+            document.querySelectorAll('.order-items').forEach(item => {
+                item.style.display = 'none';
+            });
+        });
+
+        function toggleOrderItems(orderId) {
+            const element = document.getElementById(`order-items-${orderId}`);
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function sendPayMessage(orderId, isMessageSent, reservationName, phone, items, totalPrice) {
+            // Generate the payment message preview
+            const itemLines = items.map(item => `${item.name} (×${item.quantity})\n - ${item.total_price}원`).join('\n');
+            const messagePreview = `[ 석탑대동제 컴퓨터학과 주점 결제 안내 ]
+컴퓨터학과 주점 결제 안내입니다. 3분 이내에 입금이 확인되지 않는 경우 주문이 취소될 수 있으니 유의 바랍니다.
+
+${itemLines}
+
+총액: ${totalPrice}원
+계좌번호: 토스뱅크 1000-4108-1382 김한성
+입금자명: ${reservationName}
+
+본인이 주문하지 않았거나, 문의사항이 있는 경우 회신 바랍니다.`;
+
+            const confirmMessage = isMessageSent
+                ? `The payment message has already been sent. Do you want to resend it?\n\nMessage Preview:\n\n${messagePreview}`
+                : `Do you want to send the payment message?\n\nMessage Preview:\n\n${messagePreview}`;
+
+            if (confirm(confirmMessage)) {
+                fetch(`/api/send-pay-message/${orderId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        location.reload(); // Reload the page to update the button state
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to send the message.');
+                });
+            }
+        }
+        
+        function togglePaidStatus(orderId) {
+            if (confirm('Do you want to change the payment status of this order?')) {
+                fetch(`/api/toggle-paid-status/${orderId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        location.reload(); // Reload the page to update the status
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to update payment status.');
+                });
+            }
+        }
+        
+        function openMemo(orderId, existingMemo) {
+            var m = prompt("Enter memo:", existingMemo || "");
+            if (m !== null) {
+                fetch(`/api/save-order-memo/${orderId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ memo: m })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        location.reload(); // Reload to show updated memo
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to save memo.');
+                });
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Order List</h1>
+
+        <h2>Assigned and Not Completed</h2>
+        <ul>
+            {% for entry in assigned_not_completed %}
+                <li class="{% if not entry.order.is_paid and not entry.order.pay_message_sent %}highlight-red{% elif not entry.order.is_paid and entry.order.pay_message_sent %}highlight-yellow{% endif %}">
+                    <div class="order-meta">
+                        <strong>Table {{ entry.table_number }}: {{ entry.order.reservation.name }} ({{ entry.order.reservation.phone }})</strong> <br>
+                        Order #{{ entry.order_number }} - 
+                        Price: {{ entry.order.price }}원 - 
+                        Paid: {{ entry.order.is_paid|yesno:"Yes,No" }} - 
+                        Pay Message: {{ entry.order.pay_message_sent|yesno:"Sent,Not Sent" }}
+                        {% if entry.order.reservation.memo %}
+                        <br><em>Memo: {{ entry.order.reservation.memo }}</em>
+                        {% endif %}
+                    </div>
+                    <div class="actions">
+                        <button class="toggle-paid" onclick="togglePaidStatus({{ entry.order.id }})">Toggle Paid Status</button>
+                        <button onclick="toggleOrderItems({{ entry.order.id }})">Toggle Items</button>
+                        <button class="send-message" onclick="sendPayMessage(
+                            {{ entry.order.id }},
+                            {{ entry.order.pay_message_sent|yesno:'true,false' }},
+                            '{{ entry.order.reservation.name }}',
+                            '{{ entry.order.reservation.phone }}',
+                            {{ entry.grouped_items|safe }},
+                            {{ entry.order.price }}
+                        )">
+                            Send Pay Message
+                        </button>
+                        <button class="memo" onclick="openMemo({{ entry.order.id }}, '{{ entry.order.reservation.memo|default:""|escapejs }}')">
+                            Memo
+                        </button>
+                    </div>
+                    <ul id="order-items-{{ entry.order.id }}" class="order-items">
+                        {% for item in entry.grouped_items %}
+                            <li>
+                                {{ item.name }} x {{ item.quantity }} - {{ item.total_price }}원
+                            </li>
+                        {% empty %}
+                            <li>No items in this order.</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h2>Unassigned and Not Completed</h2>
+        <ul>
+            {% for entry in unassigned_not_completed %}
+                <li class="{% if entry.order.is_paid %}highlight-green{% elif not entry.order.is_paid and not entry.order.pay_message_sent %}highlight-red{% elif not entry.order.is_paid and entry.order.pay_message_sent %}highlight-yellow{% endif %}">
+                    <div class="order-meta">
+                        <strong>{{ entry.order.reservation.name }} ({{ entry.order.reservation.phone }})</strong> <br>
+                        Order #{{ entry.order_number }} - 
+                        Price: {{ entry.order.price }}원 - 
+                        Paid: {{ entry.order.is_paid|yesno:"Yes,No" }} - 
+                        Pay Message: {{ entry.order.pay_message_sent|yesno:"Sent,Not Sent" }}
+                        {% if entry.order.reservation.memo %}
+                        <br><em>Memo: {{ entry.order.reservation.memo }}</em>
+                        {% endif %}
+                    </div>
+                    <div class="actions">
+                        <button class="toggle-paid" onclick="togglePaidStatus({{ entry.order.id }})">Toggle Paid Status</button>
+                        <button onclick="toggleOrderItems({{ entry.order.id }})">Toggle Items</button>
+                        <button class="send-message" onclick="sendPayMessage(
+                            {{ entry.order.id }},
+                            {{ entry.order.pay_message_sent|yesno:'true,false' }},
+                            '{{ entry.order.reservation.name }}',
+                            '{{ entry.order.reservation.phone }}',
+                            {{ entry.grouped_items|safe }},
+                            {{ entry.order.price }}
+                        )">
+                            Send Pay Message
+                        </button>
+                        <button class="memo" onclick="openMemo({{ entry.order.id }}, '{{ entry.order.reservation.memo|default:""|escapejs }}')">
+                            Memo
+                        </button>
+                    </div>
+                    <ul id="order-items-{{ entry.order.id }}" class="order-items">
+                        {% for item in entry.grouped_items %}
+                            <li>
+                                {{ item.name }} x {{ item.quantity }} - {{ item.total_price }}원
+                            </li>
+                        {% empty %}
+                            <li>No items in this order.</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h2>Assigned and Completed</h2>
+        <ul>
+            {% for entry in assigned_completed %}
+                <li>
+                    <div class="order-meta">
+                        <strong>{{ entry.order.reservation.name }} ({{ entry.order.reservation.phone }})</strong> <br>
+                        Order #{{ entry.order_number }} - 
+                        Price: {{ entry.order.price }}원 - 
+                        Paid: {{ entry.order.is_paid|yesno:"Yes,No" }} - 
+                        Pay Message: {{ entry.order.pay_message_sent|yesno:"Sent,Not Sent" }}
+                        {% if entry.order.reservation.memo %}
+                        <br><em>Memo: {{ entry.order.reservation.memo }}</em>
+                        {% endif %}
+                    </div>
+                    <div class="actions">
+                        <button class="toggle-paid" onclick="togglePaidStatus({{ entry.order.id }})">Toggle Paid Status</button>
+                        <button onclick="toggleOrderItems({{ entry.order.id }})">Toggle Items</button>
+                        <button class="send-message" onclick="sendPayMessage(
+                            {{ entry.order.id }},
+                            {{ entry.order.pay_message_sent|yesno:'true,false' }},
+                            '{{ entry.order.reservation.name }}',
+                            '{{ entry.order.reservation.phone }}',
+                            {{ entry.grouped_items|safe }},
+                            {{ entry.order.price }}
+                        )">
+                            Send Pay Message
+                        </button>
+                        <button class="memo" onclick="openMemo({{ entry.order.id }}, '{{ entry.order.reservation.memo|default:""|escapejs }}')">
+                            Memo
+                        </button>
+                    </div>
+                    <ul id="order-items-{{ entry.order.id }}" class="order-items">
+                        {% for item in entry.grouped_items %}
+                            <li>
+                                {{ item.name }} x {{ item.quantity }} - {{ item.total_price }}원
+                            </li>
+                        {% empty %}
+                            <li>No items in this order.</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+
+        <h2>Unassigned and Completed</h2>
+        <ul>
+            {% for entry in unassigned_completed %}
+                <li>
+                    <div class="order-meta">
+                        <strong>{{ entry.order.reservation.name }} ({{ entry.order.reservation.phone }})</strong> <br>
+                        Order #{{ entry.order_number }} - 
+                        Price: {{ entry.order.price }}원 - 
+                        Paid: {{ entry.order.is_paid|yesno:"Yes,No" }} - 
+                        Pay Message: {{ entry.order.pay_message_sent|yesno:"Sent,Not Sent" }}
+                        {% if entry.order.reservation.memo %}
+                        <br><em>Memo: {{ entry.order.reservation.memo }}</em>
+                        {% endif %}
+                    </div>
+                    <div class="actions">
+                        <button class="toggle-paid" onclick="togglePaidStatus({{ entry.order.id }})">Toggle Paid Status</button>
+                        <button onclick="toggleOrderItems({{ entry.order.id }})">Toggle Items</button>
+                        <button class="send-message" onclick="sendPayMessage(
+                            {{ entry.order.id }},
+                            {{ entry.order.pay_message_sent|yesno:'true,false' }},
+                            '{{ entry.order.reservation.name }}',
+                            '{{ entry.order.reservation.phone }}',
+                            {{ entry.grouped_items|safe }},
+                            {{ entry.order.price }}
+                        )">
+                            Send Pay Message
+                        </button>
+                        <button class="memo" onclick="openMemo({{ entry.order.id }}, '{{ entry.order.reservation.memo|default:""|escapejs }}')">
+                            Memo
+                        </button>
+                    </div>
+                    <ul id="order-items-{{ entry.order.id }}" class="order-items">
+                        {% for item in entry.grouped_items %}
+                            <li>
+                                {{ item.name }} x {{ item.quantity }} - {{ item.total_price }}원
+                            </li>
+                        {% empty %}
+                            <li>No items in this order.</li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>

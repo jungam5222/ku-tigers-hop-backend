@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Item List</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .toggle-section {
+            cursor: pointer;
+            padding: 10px;
+            background-color: #eee;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #finished-items-section {
+            display: none;
+        }
+        .summary-section {
+            background-color: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #b8d6f4;
+        }
+        .summary-title {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .summary-table {
+            width: 100%;  /* Changed from 50% to 100% for better mobile display */
+            max-width: 600px;  /* Set maximum width for larger screens */
+        }
+        .time-display {
+            font-size: 0.8em;
+            color: #666;
+        }
+        /* Media query for mobile devices */
+        @media screen and (max-width: 768px) {
+            .summary-table {
+                width: 100%;
+                max-width: none;
+            }
+            .summary-section {
+                padding: 10px;
+            }
+            th, td {
+                padding: 6px;
+                font-size: 14px;
+            }
+        }
+    </style>
+    <script>
+        function toggleFinishedItems() {
+            const section = document.getElementById('finished-items-section');
+            const buttonText = document.getElementById('toggle-button-text');
+            
+            if (section.style.display === 'none' || !section.style.display) {
+                section.style.display = 'block';
+                buttonText.textContent = '완료 항목 숨기기';
+            } else {
+                section.style.display = 'none';
+                buttonText.textContent = '완료 항목 보기';
+            }
+        }
+        
+        function toggleFinishStatus(itemId) {
+            if (confirm('이 항목의 완료 상태를 변경하시겠습니까?')) {
+                fetch(`/api/toggle-finish-status/${itemId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) {
+                        location.reload(); // Reload the page to update the status
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('상태 업데이트에 실패했습니다.');
+                });
+            }
+        }
+        
+        // Auto refresh the page every 15 seconds to show updated orders
+        setTimeout(function() {
+            location.reload();
+        }, 15000); // 15,000 milliseconds = 15 seconds
+        
+        // Function to combine similar menu items in the summary table
+        document.addEventListener('DOMContentLoaded', function() {
+            const summaryTable = document.querySelector('.summary-table tbody');
+            if (!summaryTable) return;
+            
+            const menuGroups = {};
+            const rows = Array.from(summaryTable.querySelectorAll('tr'));
+            
+            // Skip the empty message row if it exists
+            if (rows.length === 1 && rows[0].querySelectorAll('td')[0].textContent.trim() === '준비할 항목이 없습니다.') {
+                return;
+            }
+            
+            // Group the menu items by base name (removing parentheses)
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 2) {
+                    const fullName = cells[0].textContent.trim();
+                    const countText = cells[1].textContent.trim();
+                    const count = parseInt(countText.replace(/[^0-9]/g, '')) || 0;
+                    
+                    // Extract base name (everything before the parenthesis)
+                    const baseName = fullName.split('(')[0].trim();
+                    
+                    if (!menuGroups[baseName]) {
+                        menuGroups[baseName] = {
+                            items: [fullName],
+                            count: count
+                        };
+                    } else {
+                        menuGroups[baseName].items.push(fullName);
+                        menuGroups[baseName].count += count;
+                    }
+                }
+            });
+            
+            // Clear existing rows
+            summaryTable.innerHTML = '';
+            
+            // Create new rows with combined data
+            Object.keys(menuGroups).sort().forEach(baseName => {
+                const group = menuGroups[baseName];
+                const row = document.createElement('tr');
+                
+                // Create name cell
+                const nameCell = document.createElement('td');
+                if (group.items.length > 1) {
+                    nameCell.textContent = baseName + ' (통합)';
+                    nameCell.title = group.items.join(', ');
+                } else {
+                    nameCell.textContent = group.items[0];
+                }
+                
+                // Create count cell
+                const countCell = document.createElement('td');
+                countCell.textContent = group.count + '개';
+                
+                row.appendChild(nameCell);
+                row.appendChild(countCell);
+                summaryTable.appendChild(row);
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>주문 항목 목록</h1>
+    
+    <!-- Summary Section -->
+    <div class="summary-section">
+        <h2 class="summary-title">남은 주문 요약</h2>
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>메뉴명</th>
+                    <th>남은 수량</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in menu_summary|dictsort:"name" %}
+                    <tr>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.count }}개</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="2">준비할 항목이 없습니다.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <h2>준비 중인 항목 (최초 주문 순)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>메뉴명</th>
+                <th>테이블 번호</th>
+                <th>가격</th>
+                <th>주문자</th>
+                <th>주문 시간</th>
+                <th>액션</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in unfinished_items %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td>{{ item.order.reservation.assigned_table.number }}</td>
+                    <td>{{ item.price }}원</td>
+                    <td>{{ item.order.reservation.name }}</td>
+                    <td class="time-display">
+                        {% if item.order_start_time %}
+                            {{ item.order_start_time|date:"m/d H:i:s" }}
+                        {% else %}
+                            시간 정보 없음
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button onclick="toggleFinishStatus({{ item.id }})">완료 처리</button>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="7">준비 중인 항목이 없습니다.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="toggle-section" onclick="toggleFinishedItems()">
+        <h2>완료된 항목</h2>
+        <button id="toggle-button-text">완료 항목 보기</button>
+    </div>
+    
+    <div id="finished-items-section">
+        <table>
+            <thead>
+                <tr>
+                    <th>메뉴명</th>
+                    <th>테이블 번호</th>
+                    <th>가격</th>
+                    <th>주문자</th>
+                    <th>주문 시간</th>
+                    <th>액션</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in finished_items %}
+                    <tr>
+                        <td>{{ item.name }}</td>
+                        <td>{{ item.order.reservation.assigned_table.number }}</td>
+                        <td>{{ item.price }}원</td>
+                        <td>{{ item.order.reservation.name }}</td>
+                        <td class="time-display">
+                            {% if item.order_start_time %}
+                                {{ item.order_start_time|date:"m/d H:i:s" }}
+                            {% else %}
+                                시간 정보 없음
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button onclick="toggleFinishStatus({{ item.id }})">준비 중으로 변경</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7">완료된 항목이 없습니다.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Management</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        h1, h2 {
+            color: #1e3a8a;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        h1 {
+            font-size: 28px;
+        }
+        h2 {
+            font-size: 22px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        th, td {
+            border: 1px solid #e2e8f0;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #2c5282;
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background-color: #f1f5f9;
+        }
+        tr:hover {
+            background-color: #e5eefe;
+        }
+        button, select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3182ce;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2b6cb0;
+        }
+        input[type="radio"] {
+            margin-right: 5px;
+        }
+        input[type="datetime-local"] {
+            padding: 6px;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+        }
+        select {
+            background-color: #4299e1;
+        }
+        select:hover {
+            background-color: #3182ce;
+        }
+        button[name="release"] {
+            background-color: #e53e3e;
+        }
+        button[name="release"]:hover {
+            background-color: #c53030;
+        }
+        button[name="resend"] {
+            background-color: #38a169;
+        }
+        button[name="resend"]:hover {
+            background-color: #2f855a;
+        }
+        label {
+            margin-right: 10px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        @media (max-width: 768px) {
+            table {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 8px 10px;
+            }
+            button, select {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+        }
+        /* Exit time highlighting */
+        .exit-warning {
+            background-color: #fff3cd !important; /* Yellow warning color */
+        }
+        .exit-late {
+            background-color: #f8d7da !important; /* Red alert color */
+        }
+        /* Override hover for highlighted rows */
+        tr.exit-warning:hover, tr.exit-late:hover {
+            background-color: #ffe8a1 !important; /* Darker yellow for warning hover */
+        }
+        tr.exit-late:hover {
+            background-color: #f1b0b7 !important; /* Darker red for late hover */
+        }
+    </style>
+    <script>
+        // Auto refresh every 15 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 15000);
+        
+        // Function to check exit times and highlight rows
+        function checkExitTimes() {
+            const now = new Date();
+            document.querySelectorAll('tr[data-exit-time]').forEach(row => {
+                const exitTimeStr = row.getAttribute('data-exit-time');
+                if (!exitTimeStr) return;
+                
+                const exitTime = new Date(exitTimeStr);
+                
+                // Calculate difference in minutes
+                const diffMs = exitTime - now;
+                const diffMinutes = Math.floor(diffMs / 60000);
+                
+                // Apply appropriate class
+                if (diffMs < 0) {
+                    row.classList.add('exit-late');
+                } else if (diffMinutes <= 7) {
+                    row.classList.add('exit-warning');
+                }
+            });
+        }
+        
+        // Run when page loads
+        window.addEventListener('DOMContentLoaded', checkExitTimes);
+    </script>
+</head>
+<body>
+{% load tz %}
+{% localtime on %}
+<div class="container">
+    <h1>Table Management</h1>
+
+    <h2>Tables</h2>
+    <table>
+        <tr>
+            <th>No.</th><th>예약</th><th>입장시간</th><th>예상퇴장</th><th>액션</th><th>메모</th>
+        </tr>
+        {% for t in tables %}
+        {% with exit_time=t.reservation.exit_time %}
+        <tr {% if t.reservation and exit_time %}data-exit-time="{{ exit_time|date:'c' }}"{% endif %}>
+            <td>{{ t.number }}</td>
+            {% if t.reservation %}
+                <td>{{ t.reservation.name }}</td>
+                <td>{{ t.reservation.entry_time }}</td>
+                <td>{{ t.reservation.exit_time }}</td>
+                <td>
+                    <form method="post">{% csrf_token %}
+                        <input type="hidden" name="table_id" value="{{ t.id }}">
+                        <button name="release">퇴장처리</button>
+                    </form>
+                </td>
+                <td>
+                    <button type="button"
+                            onclick="openMemo('{{ t.reservation.id }}','{{ t.reservation.memo|escapejs }}')">
+                        메모
+                    </button>
+                    <form method="post"
+                        id="memo-form-{{ t.reservation.id }}"
+                        style="display:none;">
+                        {% csrf_token %}
+                        <input type="hidden" name="reservation_id" value="{{ t.reservation.id }}">
+                        <input type="hidden" name="save_memo" value="1">
+                        <input type="hidden" name="memo" id="memo-input-{{ t.reservation.id }}">
+                        <button name="save_memo" id="memo-submit-{{ t.reservation.id }}"></button>
+                    </form>
+                </td>
+            {% else %}
+                <td colspan="5">빈 테이블</td>
+            {% endif %}
+        </tr>
+        {% endwith %}
+        {% endfor %}
+    </table>
+
+    <h2>대기열 (빠른 순)</h2>
+    <table>
+        <tr>
+            <th>ID</th><th>이름</th><th>전화번호</th><th>인원</th><th>예약시간</th><th>이용시간</th><th>테이블 배정</th><th>메모</th>
+        </tr>
+        {% for r in waiting %}
+        <tr>
+            <td>{{ r.id }}</td>
+            <td>{{ r.name }}</td>
+            <td>{{ r.phone }}</td>
+            <td>{{ r.reservation_count }}</td>
+            <td>{{ r.created_at }}</td>
+            <td>{{ r.time }}</td>
+            <td>
+                <form method="post">{% csrf_token %}
+                    <input type="hidden" name="reservation_id" value="{{ r.id }}">
+                    <select name="table_id">
+                        {% for t in tables %}
+                            {% if not t.reservation %}
+                                <option value="{{ t.id }}">{{ t.number }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                    <button name="assign">할당</button>
+                </form>
+            </td>
+            <td>
+                <button type="button"
+                        onclick="openMemo('{{ r.id }}','{{ r.memo|escapejs }}')">
+                    메모
+                </button>
+                <form method="post"
+                    id="memo-form-{{ r.id }}"
+                    style="display:none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="reservation_id" value="{{ r.id }}">
+                    <input type="hidden" name="save_memo" value="1">
+                    <input type="hidden" name="memo" id="memo-input-{{ r.id }}">
+                    <button name="save_memo" id="memo-submit-{{ r.id }}"></button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">대기 중인 예약이 없습니다.</td></tr>
+        {% endfor %}
+    </table>
+
+    <h2>완료된 예약</h2>
+    <table>
+        <tr>
+            <th>ID</th><th>이름</th><th>인원</th><th>예약시간</th><th>입장시간</th><th>퇴장예정</th><th>액션</th><th>메모</th>
+        </tr>
+        {% for r in completed %}
+        <tr>
+            <td>{{ r.id }}</td>
+            <td>{{ r.name }}</td>
+            <td>{{ r.reservation_count }}</td>
+            <td>{{ r.created_at }}</td>
+            <td>{{ r.entry_time }}</td>
+            <td>{{ r.exit_time }}</td>
+            <td>
+                <form method="post">{% csrf_token %}
+                    <input type="hidden" name="reservation_id" value="{{ r.id }}">
+                    <label><input type="radio" name="time_option" value="original" checked>기존</label>
+                    <label><input type="radio" name="time_option" value="now">재대기열시</label>
+                    <label><input type="radio" name="time_option" value="custom">직접</label>
+                    <input type="datetime-local" name="custom_time" style="width:200px">
+                    <button name="resend">재대기열</button>
+                </form>
+            </td>
+            <td>
+                <button type="button"
+                        onclick="openMemo('{{ r.id }}','{{ r.memo|escapejs }}')">
+                    메모
+                </button>
+                <form method="post"
+                    id="memo-form-{{ r.id }}"
+                    style="display:none;">
+                    {% csrf_token %}
+                    <input type="hidden" name="reservation_id" value="{{ r.id }}">
+                    <input type="hidden" name="save_memo" value="1">
+                    <input type="hidden" name="memo" id="memo-input-{{ r.id }}">
+                    <button name="save_memo" id="memo-submit-{{ r.id }}"></button>
+                </form>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8">완료된 예약이 없습니다.</td></tr>
+        {% endfor %}
+    </table>
+</div>
+
+<script>
+function openMemo(id, existing) {
+  var m = prompt("메모를 입력하세요", existing);
+  if (m !== null) {
+    document.getElementById('memo-input-' + id).value = m;
+    document.getElementById('memo-form-' + id).submit();
+  }
+}
+</script>
+{% endlocaltime %}
+</body>
+</html>
