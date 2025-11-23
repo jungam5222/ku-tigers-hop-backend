@@ -9,3 +9,6 @@ requests==2.32.3
 sqlparse==0.5.3
 urllib3==2.4.0
 python-dotenv
+gunicorn
+psycopg2-binary
+whitenoise
