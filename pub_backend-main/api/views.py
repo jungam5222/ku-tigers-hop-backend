@@ -68,7 +68,7 @@ def create_reservation(request):
             order=order,
             name="테이블비",
             quantity=1,
-            price=5000,
+            price=3000,
             finish=True
         )
         order.set_price()  # Set the price after adding items
