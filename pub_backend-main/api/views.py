@@ -73,11 +73,15 @@ def create_reservation(request):
         )
         order.set_price()  # Set the price after adding items
 
-        result = send_sms(reservation.phone, '''[ 백구회 일일호프 예약 안내 ]
+        try:
+            result = send_sms(reservation.phone, '''[ 백구회 일일호프 예약 안내 ]
 백구회 일일호프 대기자 명단에 등록되었음을 알려드립니다.
 자리가 발생하는 경우 기재하신 번호로 연락드릴 예정입니다. 전화를 받지 않으실 경우, 다음 대기자에게 순번이 넘어갈 수 있으니 유의하여 주시기 바랍니다.
 감사합니다.''')
-        print(result)
+            print(">>> SMS result:", result)
+        except Exception as sms_e:
+            print(">>> SMS ERROR:", sms_e)
+
 
         return Response({"message": "Reservation created successfully", "reservation_id": reservation.id}, status=status.HTTP_201_CREATED)
 
