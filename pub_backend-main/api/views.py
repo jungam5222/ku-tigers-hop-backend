@@ -74,7 +74,7 @@ def create_reservation(request):
         order.set_price()  # Set the price after adding items
 
         result = send_sms(reservation.phone, '''[ 백구회 일일호프 예약 안내 ]
-컴퓨터학과 주점 대기자 명단에 등록되었음을 알려드립니다.
+백구회 일일호프 대기자 명단에 등록되었음을 알려드립니다.
 자리가 발생하는 경우 기재하신 번호로 연락드릴 예정입니다. 전화를 받지 않으실 경우, 다음 대기자에게 순번이 넘어갈 수 있으니 유의하여 주시기 바랍니다.
 감사합니다.''')
         print(result)
@@ -160,12 +160,12 @@ def add_menu_items(request):
         total_price = order.price
 
         message = f"""[ 백구회 일일호프 추가 주문 안내 ]
-컴퓨터학과 주점 추가 주문이 완료되었습니다.
+백구회 일일호프 추가 주문이 완료되었습니다.
 
 {chr(10).join(item_lines)}
 
 총액: {total_price}원
-계좌번호: 토스뱅크 1000-4108-1382 김한성
+계좌번호: KB국민은행 93800201556124 심태윤
 
 3분 이내에 입금이 확인되지 않는 경우 주문이 취소될 수 있으니 유의 바랍니다.
 본인이 주문하지 않았거나, 문의사항이 있는 경우 회신 바랍니다."""
@@ -406,12 +406,12 @@ def send_pay_message(request, order_id):
         ]
         total_price = order.price or order.calculate_total_price()
         message = f"""[ 백구회 일일호프 결제 안내 ]
-컴퓨터학과 주점 결제 안내입니다. 3분 이내에 입금이 확인되지 않는 경우 주문이 취소될 수 있으니 유의 바랍니다.
+백구회 일일호프 결제 안내입니다. 3분 이내에 입금이 확인되지 않는 경우 주문이 취소될 수 있으니 유의 바랍니다.
 
 {chr(10).join(item_lines)}
 
 총액: {total_price}원
-계좌번호: 토스뱅크 100041081382 김한성
+계좌번호: KB국민은행 93800201556124 심태윤
 
 본인이 주문하지 않았거나, 문의사항이 있는 경우 회신 바랍니다."""
 
