@@ -51,6 +51,7 @@ class OrderItem(models.Model):
     price = models.IntegerField()
     finish = models.BooleanField(default=False)
     order_start_time = models.DateTimeField(null=True, blank=True)
+    order_table = models.IntegerField(default=0)
 
     def total_price(self):
         return self.quantity * self.price

@@ -95,14 +95,22 @@ def add_menu_items(request):
 
     try:
         table_no = data['table_no']
-        table = Table.objects.get(number=table_no)
+
+        # ✅ 안전하게 int로 한 번 변환 (order_table은 int니까)
+        try:
+            table_no_int = int(table_no)
+        except (TypeError, ValueError):
+            return Response({"message": "Invalid table_no"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Table.number는 CharField라서 str로 조회
+        table = Table.objects.get(number=str(table_no_int))
         reservation = table.reservation
         
         if not reservation:
             return Response({"message": "No reservation assigned to this table."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Always create a new order for the reservation
-        order = Order.objects.create(is_paid=False, reservation=reservation)  # Link the new order to the reservation
+        order = Order.objects.create(is_paid=False, reservation=reservation)
         current_time = timezone.now()
 
         for item in data['items']:
@@ -111,45 +119,50 @@ def add_menu_items(request):
                     OrderItem.objects.create(
                         order=order,
                         name="나야, 짜치대패(세트A)",
-                        quantity=1,  # Each OrderItem has quantity 1
+                        quantity=1,
                         price=18000,
-                        order_start_time=current_time  # Set order_start_time for newly added items
+                        order_start_time=current_time,
+                        order_table=table_no_int,   # ✅ 여기!
                     )
                     OrderItem.objects.create(
                         order=order,
                         name="이븐하게 익은 소시지(세트A)",
-                        quantity=1,  # Each OrderItem has quantity 1
+                        quantity=1,
                         price=9000,
-                        order_start_time=current_time  # Set order_start_time for newly added items
+                        order_start_time=current_time,
+                        order_table=table_no_int,   # ✅ 여기!
                     )
             elif item['name'] == "흑백 세트 B":
                 for _ in range(item['quantity']):
                     OrderItem.objects.create(
                         order=order,
                         name="비빔비빔 골뱅이소면(세트B)",
-                        quantity=1,  # Each OrderItem has quantity 1
+                        quantity=1,
                         price=18000,
-                        order_start_time=current_time  # Set order_start_time for newly added items
+                        order_start_time=current_time,
+                        order_table=table_no_int,   # ✅ 여기!
                     )
                     OrderItem.objects.create(
                         order=order,
                         name="무..물코기(세트B)",
-                        quantity=1,  # Each OrderItem has quantity 1
+                        quantity=1,
                         price=17000,
-                        order_start_time=current_time  # Set order_start_time for newly added items
+                        order_start_time=current_time,
+                        order_table=table_no_int,   # ✅ 여기!
                     )
             else:
-                for _ in range(item['quantity']):  # Create multiple OrderItems for quantity > 1
+                for _ in range(item['quantity']):
                     OrderItem.objects.create(
                         order=order,
                         name=item['name'],
-                        quantity=1,  # Each OrderItem has quantity 1
+                        quantity=1,
                         price=item['price'],
-                        order_start_time=current_time  # Set order_start_time for newly added items
+                        order_start_time=current_time,
+                        order_table=table_no_int,   # ✅ 여기!
                     )
 
         order.set_price()  # Set the price after adding items
-
+        
         # Group items by name for the message
         grouped_items = defaultdict(lambda: {'quantity': 0, 'total_price': 0})
         for item in order.order_items.all():
