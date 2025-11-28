@@ -67,7 +67,7 @@ def create_reservation(request):
         OrderItem.objects.create(
             order=order,
             name="테이블비",
-            quantity=1,
+            quantity=data['reservation_count'],
             price=3000,
             finish=True
         )
